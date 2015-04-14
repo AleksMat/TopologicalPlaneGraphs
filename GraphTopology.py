@@ -1,3 +1,97 @@
+from tkinter import *
+from tkinter.font import Font
+
+class Triangulation():
+    def __init__(self,window):
+
+        self.w=1000 #canvas dimensions
+        self.h=650
+        self.sw = window.winfo_screenwidth() #screen dimensions (for centering)
+        self.sh = window.winfo_screenheight()
+        tw=int((self.sw-self.w)/2) #centriram okno na ekranu
+        th=int((self.sh-self.h)/2)
+        window.geometry(str(self.w)+'x'+str(self.h+20)+'+'+str(tw)+'+'+str(th)) #this centers canvas on screen
+        self.canvas=Canvas(window,width=self.w,height=self.h)
+        self.canvas.pack()
+        self.canvas.bind('<Button-1>',self.newVertex)
+        self.canvas.grid(row=0)
+        self.canvas.configure(background='white')
+        self.entry=Entry()
+        self.entry.bind('<Return>',self.newEdge)
+        self.entry.grid(row=1)
+        
+        self.font=Font(family='Arial', size=8, weight='bold')
+
+        self.graph=TopologicalGraph(0,[],[[]]) #TopologicalGraph(4,[(0,1),(1,2),(2,3),(3,0)],[ [[(0,True),(1,True),(2,True),(3,True)]],[[(0,False),(1,False),(2,False),(3,False)]]])
+        self.points=[(0,0),(self.w,0),(self.w,self.h),(0,self.h)]
+        self.lines={}
+        self.lines_num=0
+        self.add_line(0,1,None,0)
+        self.add_line(1,2,None,0)
+        self.add_line(2,0,1,0)
+        self.add_line(0,3,1,None)
+        self.add_line(3,2,1,None)
+        self.triangles=[[0,2,1,5,3,1],[2,0,3,4,6,8]] #first 3 are points, second 3 are lines
+
+    def add_line(self,p1,p2,t1,t2): #line between points p1 and p2 that is dividing triangles t1 and t2
+         self.lines[self.lines_num]=[p1,p2,t1,False]
+         self.lines[self.lines_num+1]=[p2,p1,t2,False]
+         self.lines_num+=2
+         self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1])
+        
+    def newVertex(self,event):
+        print(event.x,event.y)
+        tri=self.position(event.x,event.y)
+        print(tri)
+        p=len(self.points)
+        t=len(self.triangles)
+        l=self.lines_num
+        self.graph.add_vertex(0)
+        r=2 #radius
+        self.canvas.create_oval(event.x-r,event.y-r,event.x+r,event.y+r,fill='red',outline='red')
+        self.points.append((event.x,event.y))
+        self.canvas.create_text(event.x+3*r,event.y+3*r,text=str(len(self.graph.vert_e)-1),font=self.font)
+        if len(tri)==1:  #tu je še za premislt...
+            self.add_line(self.triangles[tri[0]][0],p,t+1,tri[0])
+            self.add_line(self.triangles[tri[0]][1],p,tri[0],t)
+            self.add_line(self.triangles[tri[0]][2],p,t,t+1)
+            self.triangles.append([self.triangles[tri[0]][1],self.triangles[tri[0]][2],p,self.triangles[tri[0]][4],l+4,l+3])
+            self.triangles.append([self.triangles[tri[0]][2],self.triangles[tri[0]][0],p,self.triangles[tri[0]][5],l,l+5])
+            self.lines[self.triangles[tri[0]][4]][2]=t
+            self.lines[self.triangles[tri[0]][5]][2]=t+1
+            self.triangles[tri[0]][2]=p
+            self.triangles[tri[0]][4]=l+2
+            self.triangles[tri[0]][5]=l+1
+
+    def position(self,x,y):   #find triangles that contain the point (at least on border) ... this is not optimal algorithm
+        tri=[]
+        for i in range (len(self.triangles)):
+            #print(x,y,i)
+            t=True
+            for j in range (3):
+                j1=(j+1)%3
+                if (self.points[self.triangles[i][j1]][0]-self.points[self.triangles[i][j]][0])*(y-self.points[self.triangles[i][j]][1]) - (x-self.points[self.triangles[i][j]][0])*(self.points[self.triangles[i][j1]][1]-self.points[self.triangles[i][j]][1])>0:       
+                    t=False
+                    break
+            if t:
+                tri.append(i)
+        return tri
+
+    def newEdge(self,event=0):
+        try:
+            s1=self.entry.get()
+            s=s1.split(',')
+            t1=True
+            for i in range (len(s)):
+                s[i]=int(s[i].strip())
+                if s[i]>=len(self.graph.vert_e):
+                    t1=False
+            if len(s)==2 and t1:
+                print(s)
+        except:
+            pass
+        
+            
 
 class TopologicalGraph():
 
@@ -46,6 +140,19 @@ class TopologicalGraph():
         s+=str(len(self.edges)//2)+' Edges: \n'+str(self.edges)+'\n'
         s+=str(len(self.faces))+' Faces: \n'+str(self.faces)+'\n'
         s+=str(len(self.borders))+' Borders: \n'+str(self.borders)
+        for i in self.borders.keys():
+            s+='\n'+str(i)+':'
+            j=self.borders[i][0]
+            if j<0:
+                s+=' v'+str(-j-1)
+            else:
+                s+=' '+str(j)
+                j1=self.edges[j][4]
+                while j1!=j:
+                    s+=' '+str(j1)
+                    j1=self.edges[j1][4]
+                    
+                
         #'\n'+str(self.edges)+'\n'+str(self.faces)+'\n'+str(self.borders)
         return s
         '''print(g.vert_e)
@@ -61,14 +168,6 @@ class TopologicalGraph():
         self.borders_num+=1
 
     def add_edge(self,v1,v2,e1=None,e2=None,*borders):   #adds a new edge between vertices v1 and v2 inside of face f, if it creates a new face
-        '''if e1<0:
-            v1=-e1-1
-        else:
-            v1=self.edges[e1][0]
-        if e2<0:
-            v2=-e2-1
-        else:
-            v2=self.edges[e2][0]'''
         self.edges.append([v1,v2,-1,-1,-1])
         self.edges.append([v2,v1,-1,-1,-1])
         if len(self.vert_e[v1])==1 and self.vert_e[v1][0]<0:
@@ -102,24 +201,24 @@ class TopologicalGraph():
             self.edges[len(self.edges)-2][2]=b1
             self.edges[len(self.edges)-1][2]=b1
             if e1!=None:
-                l1=self.edges[j1][3]
+                l1=self.edges[e1][3]
                 self.edges[len(self.edges)-2][3]=l1
-                self.edges[len(self.edges)-1][4]=j1
-                self.edges[j1][3]=len(self.edges)-1
+                self.edges[len(self.edges)-1][4]=e1
+                self.edges[e1][3]=len(self.edges)-1
                 self.edges[l1][4]=len(self.edges)-2
             else:
                 self.edges[len(self.edges)-2][3]=len(self.edges)-1
                 self.edges[len(self.edges)-1][4]=len(self.edges)-2
             if e2!=None:
-                l2=self.edges[j2][3]
-                self.edges[len(self.edges)-2][4]=j2
+                l2=self.edges[e2][3]
+                self.edges[len(self.edges)-2][4]=e2
                 self.edges[len(self.edges)-1][3]=l2
-                self.edges[j2][3]=len(self.edges)-2
+                self.edges[e2][3]=len(self.edges)-2
                 self.edges[l2][4]=len(self.edges)-1
-                self.edges[j2][2]=b1
-                while j2!=l2:
-                    j2=self.edges[j2][4]
-                    self.edges[j2][2]=b1
+                self.edges[l2][2]=b1
+                while e2!=l2:
+                    l2=self.edges[l2][3]
+                    self.edges[l2][2]=b1
             else:
                 self.edges[len(self.edges)-2][4]=len(self.edges)-1
                 self.edges[len(self.edges)-1][3]=len(self.edges)-2
@@ -135,8 +234,8 @@ class TopologicalGraph():
                 l2=self.edges[e2][3]
                 self.edges[len(self.edges)-2][3]=l1
                 self.edges[len(self.edges)-2][4]=e2
-                self.edges[len(self.edges)-1][3]=e1
-                self.edges[len(self.edges)-1][4]=l2
+                self.edges[len(self.edges)-1][3]=l2
+                self.edges[len(self.edges)-1][4]=e1
                 self.edges[e1][3]=len(self.edges)-1
                 self.edges[l1][4]=len(self.edges)-2
                 self.edges[e2][3]=len(self.edges)-2
@@ -161,15 +260,21 @@ class TopologicalGraph():
                     self.borders[borders[i]]=(self.borders[borders[i]][0],len(self.faces)-1)
             self.borders_num+=1
 
-g=TopologicalGraph(0,[],[[]])
-g.add_vertex(0)
-g.add_vertex(0)
-g.add_edge(0,1,None,None)
-print(g)
-g.add_vertex(0)
-print(g)
+window=Tk()
+window.title('PlaneGraph')
+root=Triangulation(window)
+#window.mainloop()
 
-
+#g=TopologicalGraph(0,[],[[]])
+#print(g)
+#g.add_vertex(0)
+#g.add_vertex(0)
+#g.add_vertex(0)
+#g.add_edge(0,1,None,None)
+#g.add_vertex(0)
+#print(g)
+#h=TopologicalGraph(5,[(0,2),(1,2),(0,1),(3,4)],[[[(2,False),(0,True),(1,False)]],[[(2,True),(0,False),(1,True)],[(3,False),(3,True)]]])
+#print(h)
 
 
 '''g=TopologicalGraph(5,[(0,2),(1,2),(0,1),(3,4)],[[[(2,False),(0,True),(1,False)]],[[(2,True),(0,False),(1,True)],[(3,False),(3,True)]]])

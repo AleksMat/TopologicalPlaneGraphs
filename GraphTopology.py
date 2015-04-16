@@ -4,11 +4,20 @@ from tkinter.font import Font
 class Triangulation():
     def __init__(self,window):
 
+        mainMenu=Menu(window) #making menu options
+        editMenu=Menu(mainMenu,tearoff=0)
+        mainMenu.add_cascade(menu=editMenu,label='Edit')
+        editMenu.add_command(label='{0} {1:>11}'.format('New','Ctrl-N'),command=self.clearCanvas)
+        window.bind('<Control-n>',self.clearCanvas)
+        window.bind('<Control-N>',self.clearCanvas)
+        window.config(menu=mainMenu)
+        
         self.w=1000 #canvas dimensions
         self.h=650
         self.sw = window.winfo_screenwidth() #screen dimensions (for centering)
         self.sh = window.winfo_screenheight()
-        tw=int((self.sw-self.w)/2) #centriram okno na ekranu
+        
+        tw=int((self.sw-self.w)/2)
         th=int((self.sh-self.h)/2)
         window.geometry(str(self.w)+'x'+str(self.h+20)+'+'+str(tw)+'+'+str(th)) #this centers canvas on screen
         self.canvas=Canvas(window,width=self.w,height=self.h)
@@ -16,12 +25,23 @@ class Triangulation():
         self.canvas.bind('<Button-1>',self.newVertex)
         self.canvas.grid(row=0)
         self.canvas.configure(background='white')
-        self.entry=Entry()
+        
+        frame = Frame(window)
+        frame.grid(row=1)
+        label=Label(frame,text='Connect: ')
+        label.grid(row=0,column=0)
+        self.entry=Entry(frame)
         self.entry.bind('<Return>',self.newEdge)
-        self.entry.grid(row=1)
+        self.entry.grid(row=0,column=1)
         
         self.font=Font(family='Arial', size=8, weight='bold')
 
+        self.clearCanvas() #starts new 
+
+    def clearCanvas(self,event=0):
+        self.canvas.delete("all")
+        self.entry.delete(0, 'end')
+        
         self.graph=TopologicalGraph(0,[],[[]]) #TopologicalGraph(4,[(0,1),(1,2),(2,3),(3,0)],[ [[(0,True),(1,True),(2,True),(3,True)]],[[(0,False),(1,False),(2,False),(3,False)]]])
         self.points=[(0,0),(self.w,0),(self.w,self.h),(0,self.h)]
         self.lines={}
@@ -32,6 +52,7 @@ class Triangulation():
         self.add_line(0,3,1,None)
         self.add_line(3,2,1,None)
         self.triangles=[[0,2,1,5,3,1],[2,0,3,4,6,8]] #first 3 are points, second 3 are lines
+        
 
     def add_line(self,p1,p2,t1,t2): #line between points p1 and p2 that is dividing triangles t1 and t2
          self.lines[self.lines_num]=[p1,p2,t1,False]
@@ -87,9 +108,13 @@ class Triangulation():
                 if s[i]>=len(self.graph.vert_e):
                     t1=False
             if len(s)==2 and t1:
-                print(s)
+                self.entry.delete(0, 'end')
+                p=self.path(s) #gets path
         except:
             pass
+
+    def path(s): #calculates shortest path with BFS
+        return []
         
             
 

@@ -5,12 +5,14 @@ class Triangulation():
     def __init__(self,window):
 
         mainMenu=Menu(window) #making menu options
-        editMenu=Menu(mainMenu,tearoff=0)
-        mainMenu.add_cascade(menu=editMenu,label='Edit')
-        editMenu.add_command(label='{0} {1:>11}'.format('New','Ctrl-N'),command=self.clearCanvas)
+        self.editMenu=Menu(mainMenu,tearoff=0)
+        mainMenu.add_cascade(menu=self.editMenu,label='Edit')
+        self.editMenu.add_command(label='{0} {1:>11}'.format('New','Ctrl-N'),command=self.clearCanvas)
         window.bind('<Control-n>',self.clearCanvas)
         window.bind('<Control-N>',self.clearCanvas)
         window.config(menu=mainMenu)
+        
+        self.editMenu.add_command(label='{0} {1:>11}'.format('Triangulation','On'),command=self.redraw)
         
         self.w=1000 #canvas dimensions
         self.h=650
@@ -36,46 +38,74 @@ class Triangulation():
         
         self.font=Font(family='Arial', size=8, weight='bold')
 
-        self.clearCanvas() #starts new 
+        self.r=2 #point radius
 
+        self.tri_switch=True  #if program should draw triangluation or not
+
+        self.clearCanvas() #starts new 
+    
     def clearCanvas(self,event=0):
         self.canvas.delete("all")
         self.entry.delete(0, 'end')
         
         self.graph=TopologicalGraph(0,[],[[]]) #TopologicalGraph(4,[(0,1),(1,2),(2,3),(3,0)],[ [[(0,True),(1,True),(2,True),(3,True)]],[[(0,False),(1,False),(2,False),(3,False)]]])
         self.points=[(0,0),(self.w,0),(self.w,self.h),(0,self.h)]
+        self.vert_p=[] #pointers from vertices to self.points
         self.lines={}
         self.lines_num=0
-        self.add_line(0,1,None,0)
-        self.add_line(1,2,None,0)
-        self.add_line(2,0,1,0)
-        self.add_line(0,3,1,None)
-        self.add_line(3,2,1,None)
+        self.add_line(0,1,None,0,False)
+        self.add_line(1,2,None,0,False)
+        self.add_line(2,0,1,0,False)
+        self.add_line(0,3,1,None,False)
+        self.add_line(3,2,1,None,False)
         self.triangles=[[0,2,1,5,3,1],[2,0,3,4,6,8]] #first 3 are points, second 3 are lines
+
+    def redraw(self,event=0):
+        self.tri_switch=not self.tri_switch
+        if self.tri_switch:
+            ss='On'
+        else:
+            ss='Off'
+        self.editMenu.entryconfig(2, label='{0} {1:>11}'.format('Triangulation',ss))
+        self.canvas.delete("all")
+        for i in range (len(self.vert_p)):
+            x=self.points[self.vert_p[i]][0]
+            y=self.points[self.vert_p[i]][1]
+            self.canvas.create_oval(x-self.r,y-self.r,x+self.r,y+self.r,fill='red',outline='red')
+            self.canvas.create_text(x+3*self.r,y+3*self.r,text=str(i),font=self.font)
+        for i in self.lines.keys():
+            if ((i>>1)<<1)==i:
+                p1=self.lines[i][0]
+                p2=self.lines[i][1]
+                if self.lines[i][3]:
+                    self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1],fill='red')
+                elif self.tri_switch:
+                    self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1])
         
 
-    def add_line(self,p1,p2,t1,t2): #line between points p1 and p2 that is dividing triangles t1 and t2
-         self.lines[self.lines_num]=[p1,p2,t1,False]
-         self.lines[self.lines_num+1]=[p2,p1,t2,False]
+    def add_line(self,p1,p2,t1,t2,b): #line between points p1 and p2 that is dividing triangles t1 and t2
+         self.lines[self.lines_num]=[p1,p2,t1,b]
+         self.lines[self.lines_num+1]=[p2,p1,t2,b]
          self.lines_num+=2
-         self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1])
+         if b:
+             self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1],fill='red')
+         elif self.tri_switch:
+             self.canvas.create_line(self.points[p1][0],self.points[p1][1],self.points[p2][0],self.points[p2][1])
         
     def newVertex(self,event):
-        print(event.x,event.y)
         tri=self.position(event.x,event.y)
-        print(tri)
         p=len(self.points)
         t=len(self.triangles)
         l=self.lines_num
         self.graph.add_vertex(0)
-        r=2 #radius
-        self.canvas.create_oval(event.x-r,event.y-r,event.x+r,event.y+r,fill='red',outline='red')
+        self.canvas.create_oval(event.x-self.r,event.y-self.r,event.x+self.r,event.y+self.r,fill='red',outline='red')
         self.points.append((event.x,event.y))
-        self.canvas.create_text(event.x+3*r,event.y+3*r,text=str(len(self.graph.vert_e)-1),font=self.font)
+        self.vert_p.append(len(self.points)-1)
+        self.canvas.create_text(event.x+3*self.r,event.y+3*self.r,text=str(len(self.graph.vert_e)-1),font=self.font)
         if len(tri)==1:  #tu je še za premislt...
-            self.add_line(self.triangles[tri[0]][0],p,t+1,tri[0])
-            self.add_line(self.triangles[tri[0]][1],p,tri[0],t)
-            self.add_line(self.triangles[tri[0]][2],p,t,t+1)
+            self.add_line(self.triangles[tri[0]][0],p,t+1,tri[0],False)
+            self.add_line(self.triangles[tri[0]][1],p,tri[0],t,False)
+            self.add_line(self.triangles[tri[0]][2],p,t,t+1,False)
             self.triangles.append([self.triangles[tri[0]][1],self.triangles[tri[0]][2],p,self.triangles[tri[0]][4],l+4,l+3])
             self.triangles.append([self.triangles[tri[0]][2],self.triangles[tri[0]][0],p,self.triangles[tri[0]][5],l,l+5])
             self.lines[self.triangles[tri[0]][4]][2]=t
@@ -87,7 +117,6 @@ class Triangulation():
     def position(self,x,y):   #find triangles that contain the point (at least on border) ... this is not optimal algorithm
         tri=[]
         for i in range (len(self.triangles)):
-            #print(x,y,i)
             t=True
             for j in range (3):
                 j1=(j+1)%3
@@ -99,22 +128,134 @@ class Triangulation():
         return tri
 
     def newEdge(self,event=0):
-        try:
-            s1=self.entry.get()
-            s=s1.split(',')
-            t1=True
-            for i in range (len(s)):
+        s1=self.entry.get()
+        s=s1.split(',')
+        for i in range (len(s)):
+            try:
                 s[i]=int(s[i].strip())
                 if s[i]>=len(self.graph.vert_e):
-                    t1=False
-            if len(s)==2 and t1:
-                self.entry.delete(0, 'end')
-                p=self.path(s) #gets path
-        except:
-            pass
+                    raise
+            except:
+                print('Wrong Input')
+                return None
+        if len(s)==2:
+            self.entry.delete(0, 'end')
+            p=self.path(s) #gets path
+            if p==None:
+                print('Cannot connect')
+                return None
+            if len(p)==1:
+                s1=self.vert_p[s[0]]
+                s2=self.vert_p[s[1]]
+                j=0
+                l=0
+                while j<3:
+                    if self.triangles[p[0][0]][j]==s1 and self.triangles[p[0][0]][(j+1)%3]==s2:
+                        l=self.triangles[p[0][0]][3+j]
+                        break
+                    if self.triangles[p[0][0]][j]==s2 and self.triangles[p[0][0]][(j+1)%3]==s1:
+                        l=self.triangles[p[0][0]][3+j]
+                        ss=s1
+                        s1=s2
+                        s2=ss
+                        break
+                    j+=1
+                if not self.lines[l][3]:
+                    self.lines[l][3]=True
+                    self.lines[l^1][3]=True #xor shift
+                    self.canvas.create_line(self.points[s1][0],self.points[s1][1],self.points[s2][0],self.points[s2][1],fill='red')
+            else:
+                fp=self.vert_p[s[0]] #first point in triangle
+                for i in range (0,len(p)-1):
+                    x=self.nextPoint(fp,p[i][0],p[i+1][1]^1)
+                    np=len(self.points) #new point
+                    self.points.append(x)
+                    t=len(self.triangles)
+                    self.add_line(fp,np,t,p[i][0],True)
+                    j=0
+                    while self.triangles[p[i][0]][j]!=fp:
+                        j+=1
+                    j=(j+2)%3
+                    op=self.triangles[p[i][0]][j] #old point
+                    self.triangles[p[i][0]][j]=np
+                    ol=self.triangles[p[i][0]][j+3] #old line
+                    self.triangles[p[i][0]][j+3]=self.lines_num-1
+                    self.lines[p[i+1][1]^1][1]=np
+                    self.lines[p[i+1][1]][0]=np
+                    self.lines[ol][2]=t
+                    self.triangles.append([fp,np,op,self.lines_num-2,self.lines_num,ol])
+                    self.add_line(np,op,t,t+1,False)
+                    j=0
+                    while self.triangles[p[i+1][0]][j]!=op:
+                        j+=1
+                    self.triangles[p[i+1][0]][j]=np
+                    j1=(j+2)%3
+                    ol=self.triangles[p[i+1][0]][j1+3]
+                    self.triangles[p[i+1][0]][j1+3]=self.lines_num
+                    if i<len(p)-2:
+                        self.add_line(self.triangles[p[i+1][0]][j1],np,p[i+1][0],t+1,False)
+                    else:
+                        self.add_line(self.triangles[p[i+1][0]][j1],np,p[i+1][0],t+1,True)
+                    self.triangles.append([np,self.triangles[p[i+1][0]][j1],op,self.lines_num-1,ol,self.lines_num-3])
+                    self.lines[ol][2]=t+1
+                    fp=np
+                    if i<len(p)-2 and ol==p[i+2][1]^1:
+                        p[i+1]=(t+1,-1)
+                
 
-    def path(s): #calculates shortest path with BFS
-        return []
+    def nextPoint(self,pp,t,l):
+        a=self.points[self.lines[l][0]]
+        b=self.points[self.lines[l][1]]
+        u=((self.points[pp][0]-a[0])*(b[0]-a[0])+(self.points[pp][1]-a[1])*(b[1]-a[1]))/((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]))
+        eps=0.05 #relative difference to other points
+        u=min(max(u,eps),1-eps) # maybe sometihng better?
+        return (a[0]+u*(b[0]-a[0]),a[1]+u*(b[1]-a[1]))
+
+
+    def path(self,s): #calculates shortest path with BFS
+        x=[]
+        y=[]
+        p=-1
+        for i in range (len(self.triangles)):
+            x1=0
+            if self.triangles[i][0]==self.vert_p[s[0]] or self.triangles[i][1]==self.vert_p[s[0]] or self.triangles[i][2]==self.vert_p[s[0]]:
+                x1=1
+                y.append(i)
+            if self.triangles[i][0]==self.vert_p[s[1]] or self.triangles[i][1]==self.vert_p[s[1]] or self.triangles[i][2]==self.vert_p[s[1]]:
+                if x1==1:
+                    return [(i,-1)]
+                x1=-1
+            x.append([x1,0,-1])
+        en=-1
+        while p<len(y)-1:
+            p+=1
+            for i in range (3,6):
+                l=self.triangles[y[p]][i]
+                l=l^1  #xor shift
+                t1=self.lines[l][2]
+                if t1!=None and x[t1][0]==0 and (not self.lines[l][3]):
+                    x[t1][0]=x[y[p]][0]+1
+                    x[t1][1]=y[p]
+                    x[t1][2]=l
+                    y.append(t1)
+                if t1!=None and x[t1][0]==-1 and (not self.lines[l][3]):
+                    en=t1
+                    x[t1][0]=x[y[p]][0]+1
+                    x[t1][1]=y[p]
+                    p=len(y)-1
+                    x[t1][2]=l
+                    break
+        if en==-1:
+            return None
+        path=[]
+        while x[en][0]>1:
+            path.append((en,x[en][2]))
+            en=x[en][1]
+        path.append((en,x[en][2]))
+        path.reverse()
+        return path
+                
+        
         
             
 
